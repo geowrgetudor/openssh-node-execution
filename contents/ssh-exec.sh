@@ -81,12 +81,25 @@ if [[ "privatekey" == "$authentication" ]] ; then
         mkdir -p "/tmp/.ssh-exec"
         SSH_KEY_STORAGE_PATH=$(mktemp "/tmp/.ssh-exec/ssh-keyfile.$USER@$HOST.XXXXX")
         # Write the key data to a file
-        echo "$RD_CONFIG_SSH_KEY_STORAGE_PATH" > "$SSH_KEY_STORAGE_PATH"
+        echo "$RD_CONFIG_SSH_KEY_STORAGE_PATH" | tr '\r' '\n' > "$SSH_KEY_STORAGE_PATH"
+        sed -i -e "s/\r//g" "$SSH_KEY_STORAGE_PATH"
         SSHOPTS="$SSHOPTS -i $SSH_KEY_STORAGE_PATH"
 
         trap 'rm "$SSH_KEY_STORAGE_PATH"' EXIT
 
     fi
+
+    if [[ "$RD_CONFIG_FORWARD_AGENT" == "true" ]] ; then
+        # Start ssh-agent
+        eval `/usr/bin/ssh-agent`
+
+        # Add our ssh key to the agent
+        ssh-add $SSH_KEY_STORAGE_PATH
+
+        # kill ssh-agent once the job is over
+        trap '/usr/bin/ssh-agent -k' EXIT
+    fi
+    
     RUNSSH="ssh $SSHOPTS $USER@$HOST $CMD"
 
     if [[ -n $rd_secure_passphrase ]] && [[ -n "${!rd_secure_passphrase}" ]]; then
